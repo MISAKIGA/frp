@@ -40,6 +40,7 @@ var (
 	cfgDir           string
 	showVersion      bool
 	strictConfigMode bool
+	delCfgFile       bool
 )
 
 func init() {
@@ -47,6 +48,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgDir, "config_dir", "", "", "config directory, run one frpc service for each file in config directory")
 	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", false, "version of frpc")
 	rootCmd.PersistentFlags().BoolVarP(&strictConfigMode, "strict_config", "", false, "strict config parsing mode, unknown fields will cause an error")
+	rootCmd.PersistentFlags().BoolVarP(&delCfgFile, "delete_conf", "d", false, "delete config file or frpc")
 }
 
 var rootCmd = &cobra.Command{
@@ -150,6 +152,16 @@ func startService(
 	})
 	if err != nil {
 		return err
+	}
+
+	// 判断是否删除配置文件
+	if delCfgFile {
+		errs := os.Remove(cfgFile)
+		if errs != nil {
+			log.Warn("delete config file of frpc fail\n")
+		} else {
+			log.Info("delete config file of frpc sucees\n")
+		}
 	}
 
 	shouldGracefulClose := cfg.Transport.Protocol == "kcp" || cfg.Transport.Protocol == "quic"
