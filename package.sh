@@ -53,6 +53,12 @@ for os in $os_all; do
         cd ./packages
         if [ "x${os}" = x"windows" ]; then
             zip -rq ${frp_dir_name}.zip ${frp_dir_name}
+            if [ $? -eq 0 ]; then
+              echo "windows build success."
+            else
+              echo "windows build fail, try use tar packages."
+              tar -zcf ${frp_dir_name}.tar.gz ${frp_dir_name}
+            fi
         else
             tar -zcf ${frp_dir_name}.tar.gz ${frp_dir_name}
         fi  
