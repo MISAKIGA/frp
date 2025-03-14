@@ -15,6 +15,7 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -50,12 +51,14 @@ func Create(name string, options v1.ClientPluginOptions) (p Plugin, err error) {
 
 type ExtraInfo struct {
 	ProxyProtocolHeader *pp.Header
+	SrcAddr             net.Addr
+	DstAddr             net.Addr
 }
 
 type Plugin interface {
 	Name() string
 
-	Handle(conn io.ReadWriteCloser, realConn net.Conn, extra *ExtraInfo)
+	Handle(ctx context.Context, conn io.ReadWriteCloser, realConn net.Conn, extra *ExtraInfo)
 	Close() error
 }
 

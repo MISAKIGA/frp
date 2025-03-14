@@ -17,16 +17,13 @@
             <el-form-item label="KCP Bind Port" v-if="data.kcpBindPort != 0">
               <span>{{ data.kcpBindPort }}</span>
             </el-form-item>
-            <el-form-item
-              label="QUIC Bind Port"
-              v-if="data.quicBindPort != 0"
-            >
+            <el-form-item label="QUIC Bind Port" v-if="data.quicBindPort != 0">
               <span>{{ data.quicBindPort }}</span>
             </el-form-item>
-            <el-form-item label="Http Port" v-if="data.vhostHTTPPort != 0">
+            <el-form-item label="HTTP Port" v-if="data.vhostHTTPPort != 0">
               <span>{{ data.vhostHTTPPort }}</span>
             </el-form-item>
-            <el-form-item label="Https Port" v-if="data.vhostHTTPSPort != 0">
+            <el-form-item label="HTTPS Port" v-if="data.vhostHTTPSPort != 0">
               <span>{{ data.vhostHTTPSPort }}</span>
             </el-form-item>
             <el-form-item

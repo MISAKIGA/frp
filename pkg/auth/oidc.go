@@ -17,9 +17,9 @@ package auth
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/samber/lo"
 	"golang.org/x/oauth2/clientcredentials"
 
 	v1 "github.com/fatedier/frp/pkg/config/v1"
@@ -70,7 +70,7 @@ func (auth *OidcAuthProvider) SetLogin(loginMsg *msg.Login) (err error) {
 }
 
 func (auth *OidcAuthProvider) SetPing(pingMsg *msg.Ping) (err error) {
-	if !lo.Contains(auth.additionalAuthScopes, v1.AuthScopeHeartBeats) {
+	if !slices.Contains(auth.additionalAuthScopes, v1.AuthScopeHeartBeats) {
 		return nil
 	}
 
@@ -79,7 +79,7 @@ func (auth *OidcAuthProvider) SetPing(pingMsg *msg.Ping) (err error) {
 }
 
 func (auth *OidcAuthProvider) SetNewWorkConn(newWorkConnMsg *msg.NewWorkConn) (err error) {
-	if !lo.Contains(auth.additionalAuthScopes, v1.AuthScopeNewWorkConns) {
+	if !slices.Contains(auth.additionalAuthScopes, v1.AuthScopeNewWorkConns) {
 		return nil
 	}
 
@@ -87,14 +87,18 @@ func (auth *OidcAuthProvider) SetNewWorkConn(newWorkConnMsg *msg.NewWorkConn) (e
 	return err
 }
 
+type TokenVerifier interface {
+	Verify(context.Context, string) (*oidc.IDToken, error)
+}
+
 type OidcAuthConsumer struct {
 	additionalAuthScopes []v1.AuthScope
 
-	verifier         *oidc.IDTokenVerifier
-	subjectFromLogin string
+	verifier          TokenVerifier
+	subjectsFromLogin []string
 }
 
-func NewOidcAuthVerifier(additionalAuthScopes []v1.AuthScope, cfg v1.AuthOIDCServerConfig) *OidcAuthConsumer {
+func NewTokenVerifier(cfg v1.AuthOIDCServerConfig) TokenVerifier {
 	provider, err := oidc.NewProvider(context.Background(), cfg.Issuer)
 	if err != nil {
 		panic(err)
@@ -105,9 +109,14 @@ func NewOidcAuthVerifier(additionalAuthScopes []v1.AuthScope, cfg v1.AuthOIDCSer
 		SkipExpiryCheck:   cfg.SkipExpiryCheck,
 		SkipIssuerCheck:   cfg.SkipIssuerCheck,
 	}
+	return provider.Verifier(&verifierConf)
+}
+
+func NewOidcAuthVerifier(additionalAuthScopes []v1.AuthScope, verifier TokenVerifier) *OidcAuthConsumer {
 	return &OidcAuthConsumer{
 		additionalAuthScopes: additionalAuthScopes,
-		verifier:             provider.Verifier(&verifierConf),
+		verifier:             verifier,
+		subjectsFromLogin:    []string{},
 	}
 }
 
@@ -116,7 +125,9 @@ func (auth *OidcAuthConsumer) VerifyLogin(loginMsg *msg.Login) (err error) {
 	if err != nil {
 		return fmt.Errorf("invalid OIDC token in login: %v", err)
 	}
-	auth.subjectFromLogin = token.Subject
+	if !slices.Contains(auth.subjectsFromLogin, token.Subject) {
+		auth.subjectsFromLogin = append(auth.subjectsFromLogin, token.Subject)
+	}
 	return nil
 }
 
@@ -125,17 +136,17 @@ func (auth *OidcAuthConsumer) verifyPostLoginToken(privilegeKey string) (err err
 	if err != nil {
 		return fmt.Errorf("invalid OIDC token in ping: %v", err)
 	}
-	if token.Subject != auth.subjectFromLogin {
+	if !slices.Contains(auth.subjectsFromLogin, token.Subject) {
 		return fmt.Errorf("received different OIDC subject in login and ping. "+
-			"original subject: %s, "+
+			"original subjects: %s, "+
 			"new subject: %s",
-			auth.subjectFromLogin, token.Subject)
+			auth.subjectsFromLogin, token.Subject)
 	}
 	return nil
 }
 
 func (auth *OidcAuthConsumer) VerifyPing(pingMsg *msg.Ping) (err error) {
-	if !lo.Contains(auth.additionalAuthScopes, v1.AuthScopeHeartBeats) {
+	if !slices.Contains(auth.additionalAuthScopes, v1.AuthScopeHeartBeats) {
 		return nil
 	}
 
@@ -143,7 +154,7 @@ func (auth *OidcAuthConsumer) VerifyPing(pingMsg *msg.Ping) (err error) {
 }
 
 func (auth *OidcAuthConsumer) VerifyNewWorkConn(newWorkConnMsg *msg.NewWorkConn) (err error) {
-	if !lo.Contains(auth.additionalAuthScopes, v1.AuthScopeNewWorkConns) {
+	if !slices.Contains(auth.additionalAuthScopes, v1.AuthScopeNewWorkConns) {
 		return nil
 	}
 

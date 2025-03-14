@@ -58,6 +58,7 @@ func (pxy *HTTPProxy) Run() (remoteAddr string, err error) {
 		RewriteHost:     pxy.cfg.HostHeaderRewrite,
 		RouteByHTTPUser: pxy.cfg.RouteByHTTPUser,
 		Headers:         pxy.cfg.RequestHeaders.Set,
+		ResponseHeaders: pxy.cfg.ResponseHeaders.Set,
 		Username:        pxy.cfg.HTTPUser,
 		Password:        pxy.cfg.HTTPPassword,
 		CreateConnFn:    pxy.GetRealConn,
@@ -107,7 +108,7 @@ func (pxy *HTTPProxy) Run() (remoteAddr string, err error) {
 				})
 			}
 			addrs = append(addrs, util.CanonicalAddr(routeConfig.Domain, pxy.serverCfg.VhostHTTPPort))
-			xl.Info("http proxy listen for host [%s] location [%s] group [%s], routeByHTTPUser [%s]",
+			xl.Infof("http proxy listen for host [%s] location [%s] group [%s], routeByHTTPUser [%s]",
 				routeConfig.Domain, routeConfig.Location, pxy.cfg.LoadBalancer.Group, pxy.cfg.RouteByHTTPUser)
 		}
 	}
@@ -140,7 +141,7 @@ func (pxy *HTTPProxy) Run() (remoteAddr string, err error) {
 			}
 			addrs = append(addrs, util.CanonicalAddr(tmpRouteConfig.Domain, pxy.serverCfg.VhostHTTPPort))
 
-			xl.Info("http proxy listen for host [%s] location [%s] group [%s], routeByHTTPUser [%s]",
+			xl.Infof("http proxy listen for host [%s] location [%s] group [%s], routeByHTTPUser [%s]",
 				routeConfig.Domain, routeConfig.Location, pxy.cfg.LoadBalancer.Group, pxy.cfg.RouteByHTTPUser)
 		}
 	}
@@ -152,7 +153,7 @@ func (pxy *HTTPProxy) GetRealConn(remoteAddr string) (workConn net.Conn, err err
 	xl := pxy.xl
 	rAddr, errRet := net.ResolveTCPAddr("tcp", remoteAddr)
 	if errRet != nil {
-		xl.Warn("resolve TCP addr [%s] error: %v", remoteAddr, errRet)
+		xl.Warnf("resolve TCP addr [%s] error: %v", remoteAddr, errRet)
 		// we do not return error here since remoteAddr is not necessary for proxies without proxy protocol enabled
 	}
 
@@ -166,7 +167,7 @@ func (pxy *HTTPProxy) GetRealConn(remoteAddr string) (workConn net.Conn, err err
 	if pxy.cfg.Transport.UseEncryption {
 		rwc, err = libio.WithEncryption(rwc, []byte(pxy.serverCfg.Auth.Token))
 		if err != nil {
-			xl.Error("create encryption stream error: %v", err)
+			xl.Errorf("create encryption stream error: %v", err)
 			return
 		}
 	}

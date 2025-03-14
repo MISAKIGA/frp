@@ -17,8 +17,7 @@ package proxy
 import (
 	"fmt"
 	"reflect"
-
-	"github.com/fatedier/golib/errors"
+	"sync"
 
 	v1 "github.com/fatedier/frp/pkg/config/v1"
 	"github.com/fatedier/frp/pkg/msg"
@@ -32,7 +31,8 @@ type XTCPProxy struct {
 	*BaseProxy
 	cfg *v1.XTCPProxyConfig
 
-	closeCh chan struct{}
+	closeCh   chan struct{}
+	closeOnce sync.Once
 }
 
 func NewXTCPProxy(baseProxy *BaseProxy) Proxy {
@@ -43,6 +43,7 @@ func NewXTCPProxy(baseProxy *BaseProxy) Proxy {
 	return &XTCPProxy{
 		BaseProxy: baseProxy,
 		cfg:       unwrapped,
+		closeCh:   make(chan struct{}),
 	}
 }
 
@@ -77,7 +78,7 @@ func (pxy *XTCPProxy) Run() (remoteAddr string, err error) {
 				}
 				errRet = msg.WriteMsg(workConn, m)
 				if errRet != nil {
-					xl.Warn("write nat hole sid package error, %v", errRet)
+					xl.Warnf("write nat hole sid package error, %v", errRet)
 				}
 				workConn.Close()
 			}
@@ -87,9 +88,9 @@ func (pxy *XTCPProxy) Run() (remoteAddr string, err error) {
 }
 
 func (pxy *XTCPProxy) Close() {
-	pxy.BaseProxy.Close()
-	pxy.rc.NatHoleController.CloseClient(pxy.GetName())
-	_ = errors.PanicToError(func() {
+	pxy.closeOnce.Do(func() {
+		pxy.BaseProxy.Close()
+		pxy.rc.NatHoleController.CloseClient(pxy.GetName())
 		close(pxy.closeCh)
 	})
 }
