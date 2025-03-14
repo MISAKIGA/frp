@@ -114,10 +114,14 @@ func (c *TypedVisitorConfig) UnmarshalJSON(b []byte) error {
 		decoder.DisallowUnknownFields()
 	}
 	if err := decoder.Decode(configurer); err != nil {
-		return err
+		return fmt.Errorf("unmarshal VisitorConfig error: %v", err)
 	}
 	c.VisitorConfigurer = configurer
 	return nil
+}
+
+func (c *TypedVisitorConfig) MarshalJSON() ([]byte, error) {
+	return json.Marshal(c.VisitorConfigurer)
 }
 
 func NewVisitorConfigurerByType(t VisitorType) VisitorConfigurer {

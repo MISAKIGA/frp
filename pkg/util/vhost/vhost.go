@@ -29,7 +29,8 @@ import (
 type RouteInfo string
 
 const (
-	RouteInfoKey RouteInfo = "routeInfo"
+	RouteInfoKey   RouteInfo = "routeInfo"
+	RouteConfigKey RouteInfo = "routeConfig"
 )
 
 type RequestRouteInfo struct {
@@ -99,6 +100,10 @@ func (v *Muxer) SetRewriteHostFunc(f hostRewriteFunc) *Muxer {
 	return v
 }
 
+func (v *Muxer) Close() error {
+	return v.listener.Close()
+}
+
 type ChooseEndpointFunc func() (string, error)
 
 type CreateConnFunc func(remoteAddr string) (net.Conn, error)
@@ -113,6 +118,7 @@ type RouteConfig struct {
 	Username        string
 	Password        string
 	Headers         map[string]string
+	ResponseHeaders map[string]string
 	RouteByHTTPUser string
 
 	CreateConnFn           CreateConnFunc
@@ -203,7 +209,7 @@ func (v *Muxer) handle(c net.Conn) {
 
 	sConn, reqInfoMap, err := v.vhostFunc(c)
 	if err != nil {
-		log.Debug("get hostname from http/https request error: %v", err)
+		log.Debugf("get hostname from http/https request error: %v", err)
 		_ = c.Close()
 		return
 	}
@@ -213,7 +219,7 @@ func (v *Muxer) handle(c net.Conn) {
 	httpUser := reqInfoMap["HTTPUser"]
 	l, ok := v.getListener(name, path, httpUser)
 	if !ok {
-		log.Debug("http request for host [%s] path [%s] httpUser [%s] not found", name, path, httpUser)
+		log.Debugf("http request for host [%s] path [%s] httpUser [%s] not found", name, path, httpUser)
 		v.failHook(sConn)
 		return
 	}
@@ -221,7 +227,7 @@ func (v *Muxer) handle(c net.Conn) {
 	xl := xlog.FromContextSafe(l.ctx)
 	if v.successHook != nil {
 		if err := v.successHook(c, reqInfoMap); err != nil {
-			xl.Info("success func failure on vhost connection: %v", err)
+			xl.Infof("success func failure on vhost connection: %v", err)
 			_ = c.Close()
 			return
 		}
@@ -232,7 +238,7 @@ func (v *Muxer) handle(c net.Conn) {
 	if l.mux.checkAuth != nil && l.username != "" {
 		ok, err := l.mux.checkAuth(c, l.username, l.password, reqInfoMap)
 		if !ok || err != nil {
-			xl.Debug("auth failed for user: %s", l.username)
+			xl.Debugf("auth failed for user: %s", l.username)
 			_ = c.Close()
 			return
 		}
@@ -244,12 +250,12 @@ func (v *Muxer) handle(c net.Conn) {
 	}
 	c = sConn
 
-	xl.Debug("new request host [%s] path [%s] httpUser [%s]", name, path, httpUser)
+	xl.Debugf("new request host [%s] path [%s] httpUser [%s]", name, path, httpUser)
 	err = errors.PanicToError(func() {
 		l.accept <- c
 	})
 	if err != nil {
-		xl.Warn("listener is already closed, ignore this request")
+		xl.Warnf("listener is already closed, ignore this request")
 	}
 }
 
@@ -278,10 +284,10 @@ func (l *Listener) Accept() (net.Conn, error) {
 	if l.mux.rewriteHost != nil {
 		sConn, err := l.mux.rewriteHost(conn, l.rewriteHost)
 		if err != nil {
-			xl.Warn("host header rewrite failed: %v", err)
+			xl.Warnf("host header rewrite failed: %v", err)
 			return nil, fmt.Errorf("host header rewrite failed")
 		}
-		xl.Debug("rewrite host to [%s] success", l.rewriteHost)
+		xl.Debugf("rewrite host to [%s] success", l.rewriteHost)
 		conn = sConn
 	}
 	return netpkg.NewContextConn(l.ctx, conn), nil

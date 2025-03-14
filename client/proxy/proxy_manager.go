@@ -96,7 +96,7 @@ func (pm *Manager) HandleWorkConn(name string, workConn net.Conn, m *msg.StartWo
 	}
 }
 
-func (pm *Manager) HandleEvent(payload interface{}) error {
+func (pm *Manager) HandleEvent(payload any) error {
 	var m msg.Message
 	switch e := payload.(type) {
 	case *event.StartProxyPayload:
@@ -152,7 +152,7 @@ func (pm *Manager) UpdateAll(proxyCfgs []v1.ProxyConfigurer) {
 		}
 	}
 	if len(delPxyNames) > 0 {
-		xl.Info("proxy removed: %s", delPxyNames)
+		xl.Infof("proxy removed: %s", delPxyNames)
 	}
 
 	addPxyNames := make([]string, 0)
@@ -170,6 +170,6 @@ func (pm *Manager) UpdateAll(proxyCfgs []v1.ProxyConfigurer) {
 		}
 	}
 	if len(addPxyNames) > 0 {
-		xl.Info("proxy added: %s", addPxyNames)
+		xl.Infof("proxy added: %s", addPxyNames)
 	}
 }

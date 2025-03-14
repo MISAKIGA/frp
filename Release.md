@@ -1,3 +1,7 @@
+### Features
+
+* Support metadatas and annotations in frpc proxy commands.
+
 ### Fixes
 
-* frpc has a certain chance to panic when login: close of closed channel.
+* Properly release resources in service.Close() to prevent resource leaks when used as a library.

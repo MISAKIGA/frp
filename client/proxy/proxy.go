@@ -25,7 +25,7 @@ import (
 	"time"
 
 	libio "github.com/fatedier/golib/io"
-	libdial "github.com/fatedier/golib/net/dial"
+	libnet "github.com/fatedier/golib/net"
 	pp "github.com/pires/go-proxyproto"
 	"golang.org/x/time/rate"
 
@@ -141,13 +141,13 @@ func (pxy *BaseProxy) HandleTCPWorkConnection(workConn net.Conn, m *msg.StartWor
 		})
 	}
 
-	xl.Trace("handle tcp work connection, useEncryption: %t, useCompression: %t",
+	xl.Tracef("handle tcp work connection, useEncryption: %t, useCompression: %t",
 		baseCfg.Transport.UseEncryption, baseCfg.Transport.UseCompression)
 	if baseCfg.Transport.UseEncryption {
 		remote, err = libio.WithEncryption(remote, encKey)
 		if err != nil {
 			workConn.Close()
-			xl.Error("create encryption stream error: %v", err)
+			xl.Errorf("create encryption stream error: %v", err)
 			return
 		}
 	}
@@ -158,68 +158,70 @@ func (pxy *BaseProxy) HandleTCPWorkConnection(workConn net.Conn, m *msg.StartWor
 
 	// check if we need to send proxy protocol info
 	var extraInfo plugin.ExtraInfo
-	if baseCfg.Transport.ProxyProtocolVersion != "" {
-		if m.SrcAddr != "" && m.SrcPort != 0 {
-			if m.DstAddr == "" {
-				m.DstAddr = "127.0.0.1"
-			}
-			srcAddr, _ := net.ResolveTCPAddr("tcp", net.JoinHostPort(m.SrcAddr, strconv.Itoa(int(m.SrcPort))))
-			dstAddr, _ := net.ResolveTCPAddr("tcp", net.JoinHostPort(m.DstAddr, strconv.Itoa(int(m.DstPort))))
-			h := &pp.Header{
-				Command:         pp.PROXY,
-				SourceAddr:      srcAddr,
-				DestinationAddr: dstAddr,
-			}
-
-			if strings.Contains(m.SrcAddr, ".") {
-				h.TransportProtocol = pp.TCPv4
-			} else {
-				h.TransportProtocol = pp.TCPv6
-			}
-
-			if baseCfg.Transport.ProxyProtocolVersion == "v1" {
-				h.Version = 1
-			} else if baseCfg.Transport.ProxyProtocolVersion == "v2" {
-				h.Version = 2
-			}
-
-			extraInfo.ProxyProtocolHeader = h
+	if m.SrcAddr != "" && m.SrcPort != 0 {
+		if m.DstAddr == "" {
+			m.DstAddr = "127.0.0.1"
 		}
+		srcAddr, _ := net.ResolveTCPAddr("tcp", net.JoinHostPort(m.SrcAddr, strconv.Itoa(int(m.SrcPort))))
+		dstAddr, _ := net.ResolveTCPAddr("tcp", net.JoinHostPort(m.DstAddr, strconv.Itoa(int(m.DstPort))))
+		extraInfo.SrcAddr = srcAddr
+		extraInfo.DstAddr = dstAddr
+	}
+
+	if baseCfg.Transport.ProxyProtocolVersion != "" && m.SrcAddr != "" && m.SrcPort != 0 {
+		h := &pp.Header{
+			Command:         pp.PROXY,
+			SourceAddr:      extraInfo.SrcAddr,
+			DestinationAddr: extraInfo.DstAddr,
+		}
+
+		if strings.Contains(m.SrcAddr, ".") {
+			h.TransportProtocol = pp.TCPv4
+		} else {
+			h.TransportProtocol = pp.TCPv6
+		}
+
+		if baseCfg.Transport.ProxyProtocolVersion == "v1" {
+			h.Version = 1
+		} else if baseCfg.Transport.ProxyProtocolVersion == "v2" {
+			h.Version = 2
+		}
+		extraInfo.ProxyProtocolHeader = h
 	}
 
 	if pxy.proxyPlugin != nil {
 		// if plugin is set, let plugin handle connection first
-		xl.Debug("handle by plugin: %s", pxy.proxyPlugin.Name())
-		pxy.proxyPlugin.Handle(remote, workConn, &extraInfo)
-		xl.Debug("handle by plugin finished")
+		xl.Debugf("handle by plugin: %s", pxy.proxyPlugin.Name())
+		pxy.proxyPlugin.Handle(pxy.ctx, remote, workConn, &extraInfo)
+		xl.Debugf("handle by plugin finished")
 		return
 	}
 
-	localConn, err := libdial.Dial(
+	localConn, err := libnet.Dial(
 		net.JoinHostPort(baseCfg.LocalIP, strconv.Itoa(baseCfg.LocalPort)),
-		libdial.WithTimeout(10*time.Second),
+		libnet.WithTimeout(10*time.Second),
 	)
 	if err != nil {
 		workConn.Close()
-		xl.Error("connect to local service [%s:%d] error: %v", baseCfg.LocalIP, baseCfg.LocalPort, err)
+		xl.Errorf("connect to local service [%s:%d] error: %v", baseCfg.LocalIP, baseCfg.LocalPort, err)
 		return
 	}
 
-	xl.Debug("join connections, localConn(l[%s] r[%s]) workConn(l[%s] r[%s])", localConn.LocalAddr().String(),
+	xl.Debugf("join connections, localConn(l[%s] r[%s]) workConn(l[%s] r[%s])", localConn.LocalAddr().String(),
 		localConn.RemoteAddr().String(), workConn.LocalAddr().String(), workConn.RemoteAddr().String())
 
 	if extraInfo.ProxyProtocolHeader != nil {
 		if _, err := extraInfo.ProxyProtocolHeader.WriteTo(localConn); err != nil {
 			workConn.Close()
-			xl.Error("write proxy protocol header to local conn error: %v", err)
+			xl.Errorf("write proxy protocol header to local conn error: %v", err)
 			return
 		}
 	}
 
 	_, _, errs := libio.Join(localConn, remote)
-	xl.Debug("join connections closed")
+	xl.Debugf("join connections closed")
 	if len(errs) > 0 {
-		xl.Trace("join connections errors: %v", errs)
+		xl.Tracef("join connections errors: %v", errs)
 	}
 	if compressionResourceRecycleFn != nil {
 		compressionResourceRecycleFn()

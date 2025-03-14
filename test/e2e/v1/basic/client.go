@@ -1,6 +1,7 @@
 package basic
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -8,7 +9,6 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 
-	clientsdk "github.com/fatedier/frp/pkg/sdk/client"
 	"github.com/fatedier/frp/test/e2e/framework"
 	"github.com/fatedier/frp/test/e2e/framework/consts"
 	"github.com/fatedier/frp/test/e2e/pkg/request"
@@ -57,8 +57,8 @@ var _ = ginkgo.Describe("[Feature: ClientManage]", func() {
 		framework.NewRequestExpect(f).Port(p2Port).Ensure()
 		framework.NewRequestExpect(f).Port(p3Port).Ensure()
 
-		client := clientsdk.New("127.0.0.1", adminPort)
-		conf, err := client.GetConfig()
+		client := f.APIClientForFrpc(adminPort)
+		conf, err := client.GetConfig(context.Background())
 		framework.ExpectNoError(err)
 
 		newP2Port := f.AllocPort()
@@ -69,10 +69,10 @@ var _ = ginkgo.Describe("[Feature: ClientManage]", func() {
 			newClientConf = newClientConf[:p3Index]
 		}
 
-		err = client.UpdateConfig(newClientConf)
+		err = client.UpdateConfig(context.Background(), newClientConf)
 		framework.ExpectNoError(err)
 
-		err = client.Reload(true)
+		err = client.Reload(context.Background(), true)
 		framework.ExpectNoError(err)
 		time.Sleep(time.Second)
 
@@ -124,8 +124,8 @@ var _ = ginkgo.Describe("[Feature: ClientManage]", func() {
 
 		framework.NewRequestExpect(f).Port(testPort).Ensure()
 
-		client := clientsdk.New("127.0.0.1", adminPort)
-		err := client.Stop()
+		client := f.APIClientForFrpc(adminPort)
+		err := client.Stop(context.Background())
 		framework.ExpectNoError(err)
 
 		time.Sleep(3 * time.Second)
